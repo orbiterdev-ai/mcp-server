@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "item/fileChange/requestApproval",
+  "params": {
+    "itemId": "item_002",
+    "threadId": "thread_001",
+    "turnId": "turn_002",
+    "reason": "File changes need approval",
+    "cwd": "/workspace/demo-app",
+    "files": ["mcp/src/index.ts", "mcp/src/codex/hooks.ts"]
+  }
+}

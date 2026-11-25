@@ -1,0 +1,12 @@
+{
+  "session_id": "codex-session-001",
+  "turn_id": "turn-001",
+  "tool_use_id": "tool-001",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "cwd": "/workspace/demo-app",
+  "model": "gpt-5.5",
+  "tool_input": {
+    "command": "git status --short"
+  }
+}

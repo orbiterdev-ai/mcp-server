@@ -1,0 +1,13 @@
+{
+  "session_id": "plan-session",
+  "turn_id": "plan-turn",
+  "tool_use_id": "plan-request",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Plan",
+  "cwd": "/workspace/demo-app",
+  "model": "gpt-5.5",
+  "tool_input": {
+    "title": "Implement this plan?",
+    "plan": "Checkpoint current work, update files, and run validation."
+  }
+}

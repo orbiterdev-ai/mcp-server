@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "item/commandExecution/requestApproval",
+  "params": {
+    "itemId": "item_001",
+    "threadId": "thread_001",
+    "turnId": "turn_001",
+    "reason": "Needs package publish permission",
+    "command": "npm publish",
+    "cwd": "/workspace/demo-app"
+  }
+}

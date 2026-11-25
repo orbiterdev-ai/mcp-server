@@ -1,0 +1,12 @@
+{
+  "session_id": "orbiter-gemini-session-002",
+  "transcript_path": "/workspace/demo-app/.gemini/tmp/session.jsonl",
+  "cwd": "/workspace/demo-app",
+  "hook_event_name": "BeforeTool",
+  "timestamp": "2026-06-14T22:46:00.000Z",
+  "tool_name": "run_shell_command",
+  "tool_input": {
+    "command": "npm publish --dry-run",
+    "description": "Prepare package publication dry run"
+  }
+}

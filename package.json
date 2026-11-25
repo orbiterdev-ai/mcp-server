@@ -1,0 +1,87 @@
+{
+  "name": "@orbiterdev/mcp-server",
+  "mcpName": "io.github.orbiterdev-ai/mcp-server",
+  "version": "0.1.14",
+  "description": "MCP server and native lifecycle hooks CLI for Orbiter Dev - one-tap iOS & Android biometric sign-off when AI agents take real-world action.",
+  "homepage": "https://orbiterdev.ai",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "bin": {
+    "orbiter-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "node scripts/clean-dist.cjs && tsc",
+    "watch": "tsc --watch",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "lint": "eslint src --ext ts",
+    "test": "node --test tests/*.test.js",
+    "test:hooks": "node --test tests/hook-integrations.test.js",
+    "test:hook-capture": "node --test tests/hook-capture.test.js",
+    "test:hook-suite": "npm run build && npm --prefix orbiter-bridge run build && node --test tests/*.test.js && npm --prefix orbiter-bridge test",
+    "codex:setup:dry-run": "node dist/index.js codex setup --dry-run --adapter mock --mock-decision approved",
+    "codex:doctor": "node dist/index.js codex doctor",
+    "antigravity:setup:dry-run": "node dist/index.js antigravity setup --dry-run --adapter mock --mock-decision approved",
+    "antigravity:doctor": "node dist/index.js antigravity doctor --adapter mock --mock-decision approved",
+    "claude:setup:dry-run": "node dist/index.js claude setup --dry-run",
+    "claude:doctor": "node dist/index.js claude doctor",
+    "gemini:setup:dry-run": "node dist/index.js gemini setup --dry-run --adapter mock --mock-decision approved",
+    "gemini:doctor": "node dist/index.js gemini doctor --adapter mock --mock-decision approved"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "claude",
+    "claude-code",
+    "anthropic",
+    "codex",
+    "openai-codex",
+    "openai",
+    "antigravity",
+    "google-antigravity",
+    "ai",
+    "ai-agent",
+    "agent-governance",
+    "approval",
+    "mobile",
+    "human-in-the-loop",
+    "cursor",
+    "windsurf",
+    "devtools",
+    "code-review"
+  ],
+  "author": "Orbiter Dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/orbiterdev-ai/mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/orbiterdev-ai/mcp-server/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
+    "eslint": "^8.57.1",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "overrides": {
+    "hono": "4.12.25",
+    "js-yaml": "4.2.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "toolCall": {
+    "name": "ask_permission",
+    "args": {
+      "Action": "command",
+      "Target": "command(git push)",
+      "Reason": "Allow pushing the completed Antigravity hooks integration"
+    }
+  },
+  "stepIdx": 11,
+  "conversationId": "11111111-1111-1111-1111-111111111111",
+  "workspacePaths": ["/workspace/demo-app"],
+  "transcriptPath": "/workspace/demo-app/.gemini/jetski/transcript.jsonl",
+  "artifactDirectoryPath": "/workspace/demo-app/.gemini/jetski/artifacts"
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.orbiterdev-ai/mcp-server",
+  "title": "Orbiter Dev",
+  "description": "One-tap iOS & Android biometric sign-off before AI agents take real-world action.",
+  "version": "0.1.14",
+  "websiteUrl": "https://orbiterdev.ai",
+  "repository": {
+    "url": "https://github.com/orbiterdev-ai/mcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@orbiterdev/mcp-server",
+      "version": "0.1.14",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ORBITER_API_URL",
+          "description": "Orbiter Dev API endpoint URL (default: https://api.orbiterdev.ai)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "ORBITER_SERVER_URL",
+          "description": "Legacy alias for ORBITER_API_URL (default: https://api.orbiterdev.ai)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "ORBITER_TOKEN",
+          "description": "Optional API token (auto-managed after mobile pairing via orbiter_auth)",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "ORBITER_ENABLE_LEGACY_TOOLS",
+          "description": "Set to 1 to expose legacy telemetry and memory MCP tools in addition to core approval tools",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.orbiterdev.ai/mcp"
+    }
+  ]
+}

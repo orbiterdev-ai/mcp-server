@@ -1,0 +1,18 @@
+{
+  "session_id": "orbiter-claude-permission-session",
+  "transcript_path": "/workspace/orbiter/.claude/transcript.jsonl",
+  "cwd": "/workspace/orbiter",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git status --short",
+    "description": "Inspect repository status"
+  },
+  "permission_suggestions": [
+    {
+      "type": "allow_once",
+      "description": "Read-only git status"
+    }
+  ]
+}

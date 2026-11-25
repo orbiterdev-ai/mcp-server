@@ -1,0 +1,15 @@
+{
+  "toolCall": {
+    "name": "run_command",
+    "args": {
+      "CommandLine": "npm test",
+      "Cwd": "/workspace/demo-app/mcp",
+      "WaitMsBeforeAsync": 5000
+    }
+  },
+  "stepIdx": 19,
+  "conversationId": "00000000-0000-0000-0000-000000000000",
+  "workspacePaths": ["/workspace/demo-app"],
+  "transcriptPath": "/workspace/demo-app/.gemini/jetski/transcript.jsonl",
+  "artifactDirectoryPath": "/workspace/demo-app/.gemini/jetski/artifacts"
+}

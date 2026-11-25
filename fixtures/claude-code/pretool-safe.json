@@ -1,0 +1,12 @@
+{
+  "session_id": "orbiter-claude-safe-session",
+  "transcript_path": "/workspace/orbiter/.claude/transcript.jsonl",
+  "cwd": "/workspace/orbiter",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git status --short",
+    "description": "Inspect repository status"
+  }
+}

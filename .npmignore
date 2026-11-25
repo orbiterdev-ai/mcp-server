@@ -1,0 +1,29 @@
+# Directories
+node_modules/
+orbiter-bridge/
+orbiter-plugin/
+ui/
+src/
+.github/
+
+# Build artifacts & caches
+*.tgz
+*.log
+compile.log
+.tmp_*
+
+# Source maps (not needed at runtime)
+dist/**/*.map
+dist/**/*.d.ts.map
+
+# Config & dev files
+tsconfig.json
+.eslintrc*
+.prettierrc*
+.editorconfig
+test_auth.ts
+
+# Metadata files not needed at runtime
+smithery.yaml
+manifest.json
+orbiter-safety-net.mcpb

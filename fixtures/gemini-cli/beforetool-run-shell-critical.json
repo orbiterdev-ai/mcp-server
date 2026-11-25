@@ -1,0 +1,12 @@
+{
+  "session_id": "orbiter-gemini-session-001",
+  "transcript_path": "/workspace/demo-app/.gemini/tmp/session.jsonl",
+  "cwd": "/workspace/demo-app",
+  "hook_event_name": "BeforeTool",
+  "timestamp": "2026-06-14T22:45:00.000Z",
+  "tool_name": "run_shell_command",
+  "tool_input": {
+    "command": "git reset --hard HEAD~1",
+    "description": "Reset the repository to the previous commit"
+  }
+}

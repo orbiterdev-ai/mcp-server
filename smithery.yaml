@@ -1,0 +1,49 @@
+# Smithery Registry Configuration
+# See: https://smithery.ai/docs/publishing
+
+# Metadata
+name: orbiter-dev
+displayName: "Orbiter Dev - Mobile Approvals for AI Agents"
+description: "One-tap iOS & Android biometric sign-off before AI agents take real-world action. Deterministic local hooks for coding agents plus MCP approval tools for cross-agent workflows."
+icon: https://orbiterdev.ai/icon.png
+homepage: https://orbiterdev.ai
+repository: https://github.com/orbiterdev-ai/mcp-server
+license: MIT
+authors:
+  - name: Orbiter Dev
+    url: https://orbiterdev.ai
+categories:
+  - developer-tools
+  - governance
+  - ai-agents
+  - security
+tags:
+  - approval
+  - human-in-the-loop
+  - mobile
+  - agent-governance
+  - claude
+  - codex
+  - cursor
+  - windsurf
+
+# Server configuration
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      apiUrl:
+        type: string
+        description: "Orbiter Dev backend API URL"
+        default: "https://api.orbiterdev.ai"
+    required: []
+  commandFunction: |
+    (config) => ({
+      command: "npx",
+      args: ["-y", "@orbiterdev/mcp-server"],
+      env: {
+        ORBITER_API_URL: config.apiUrl || "https://api.orbiterdev.ai",
+        ORBITER_SERVER_URL: config.apiUrl || "https://api.orbiterdev.ai"
+      }
+    })

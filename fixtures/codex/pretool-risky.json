@@ -1,0 +1,12 @@
+{
+  "session_id": "codex-session-002",
+  "turn_id": "turn-002",
+  "tool_use_id": "tool-002",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "cwd": "/workspace/demo-app",
+  "model": "gpt-5.5",
+  "tool_input": {
+    "command": "npm publish"
+  }
+}
