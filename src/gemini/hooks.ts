@@ -11,6 +11,7 @@ import { GEMINI_HOOK_EVENTS } from './types.js';
 import { createCodexApprovalAdapter } from '../codex/approvalAdapters.js';
 import { isRecord, safeJson, sha256Hex, stableStringify, truncate } from '../codex/json.js';
 import { evaluateHostToolRiskWithPolicy } from '../codex/risk.js';
+import { isTrustedOrbiterInternalTool } from '../policy/internalTools.js';
 import { meetsMinRisk, resolveMinRisk } from '../policy/ruleset.js';
 import { redactValue } from '../codex/redaction.js';
 import { mcpComponentVersion } from '../version.js';
@@ -155,7 +156,7 @@ export function normalizeGeminiHookEvent(raw: GeminiHookEvent): NormalizedGemini
     metadata,
     approval,
     risk,
-    isOrbiterLoop: isOrbiterTool(toolName, payload),
+    isOrbiterLoop: isTrustedOrbiterInternalTool(toolName),
   };
 }
 
@@ -236,11 +237,6 @@ function estimateFileCount(input: unknown): number {
   const text = stableStringify(input);
   const matches = text.match(/(?:[A-Za-z]:\\|\.{0,2}\/)[^"'\s]+/g);
   return matches ? Math.min(matches.length, 999) : 0;
-}
-
-function isOrbiterTool(toolName: string, input: unknown): boolean {
-  const text = `${toolName}\n${stableStringify(input)}`.toLowerCase();
-  return text.includes('orbiter-mcp') || text.includes('request_approval') || text.includes('gemini-hook');
 }
 
 function geminiWorkspaceName(cwd: string): string {

@@ -242,7 +242,9 @@ async function main(): Promise<void> {
     console.error(`${SERVER_NAME} connected and ready`);
 }
 
-main().catch((error) => {
-    console.error('Fatal error:', error);
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch((error) => {
+        console.error('Fatal error:', error);
+        process.exit(1);
+    });
+}

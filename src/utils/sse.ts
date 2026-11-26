@@ -16,7 +16,7 @@ import { getAuthHeaders } from './auth.js';
  */
 
 export interface SSEDecision {
-    status: 'approved' | 'rejected' | 'timeout';
+    status: 'approved' | 'rejected' | 'denied' | 'expired' | 'cancelled' | 'timeout';
     notes: string;
     timedOut: boolean;
     method: 'sse' | 'poll';
@@ -61,11 +61,11 @@ export async function sseWaitForDecision(
     timeoutSeconds: number = 300
 ): Promise<SSEDecision> {
     let attempt = 0;
-    const deadline = Date.now() + (Math.max(1, timeoutSeconds) * 1000);
+    const deadline = Date.now() + (Math.max(0.05, timeoutSeconds) * 1000);
 
     while (attempt < SSE_RETRY_CONFIG.maxAttempts && Date.now() < deadline) {
         try {
-            const remainingMs = Math.max(1_000, deadline - Date.now());
+            const remainingMs = Math.max(50, deadline - Date.now());
             const result = await sseConnect(serverUrl, approvalId, remainingMs);
             return result; // Terminal result - don't retry
         } catch (err) {
@@ -180,12 +180,24 @@ function sseConnect(
 
                     for (const event of events.parsed) {
                         if (event.type === 'decision') {
+                            const eventApprovalId = event.data.approval_id ?? event.data.id;
+                            if (eventApprovalId !== undefined && String(eventApprovalId) !== String(approvalId)) {
+                                // Ignore decision events bound to a different approval ID.
+                                continue;
+                            }
+                            const normalizedStatus = typeof event.data.status === 'string'
+                                ? event.data.status.trim().toLowerCase()
+                                : '';
+                            if (!normalizedStatus || normalizedStatus === 'pending') {
+                                // Ignore non-terminal or incomplete decision payloads.
+                                continue;
+                            }
                             clearTimeout(safetyTimeout);
                             controller.abort();
-                            const status = event.data.status as SSEDecision['status'];
+                            const status = normalizedStatus as SSEDecision['status'];
                             resolve({
                                 status,
-                                notes: event.data.notes || '',
+                                notes: typeof event.data.notes === 'string' ? event.data.notes : '',
                                 timedOut: false,
                                 method: 'sse',
                             });

@@ -56,11 +56,18 @@ export class HttpCodexApprovalAdapter implements CodexApprovalAdapter {
 
   async requestApproval(request: OrbiterCodexApprovalRequest): Promise<CodexApprovalDecision> {
     const created = await createCodexApproval(request, this.options.serverUrl);
-    if (created.status === 'approved') {
-      return { status: 'approved', approvalId: created.approvalId, notes: 'Auto-approved by Orbiter backend', source: 'http' };
-    }
     if (!created.approvalId) {
       return { status: 'timeout', notes: 'Orbiter backend did not return approval id', timedOut: true, source: 'http' };
+    }
+    const initialStatus = created.status?.trim().toLowerCase();
+    if (initialStatus === 'approved') {
+      return { status: 'approved', approvalId: created.approvalId, notes: 'Auto-approved by Orbiter backend', source: 'http' };
+    }
+    if (initialStatus === 'rejected' || initialStatus === 'denied') {
+      return { status: 'rejected', approvalId: created.approvalId, notes: 'Rejected by Orbiter backend', source: 'http' };
+    }
+    if (initialStatus === 'expired') {
+      return { status: 'timeout', approvalId: created.approvalId, notes: 'Expired on Orbiter backend', timedOut: true, source: 'http' };
     }
     const timeoutSeconds = this.options.timeoutSeconds ?? Number(process.env.ORBITER_CODEX_TIMEOUT_SECONDS || 300);
     return waitForCodexDecision(created.approvalId, timeoutSeconds, this.options.serverUrl);

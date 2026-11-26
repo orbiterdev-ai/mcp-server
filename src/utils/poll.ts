@@ -38,26 +38,35 @@ export async function pollForDecision(
             }
 
             const data: any = await response.json();
-            const approval = data.data;
+            const approval = data?.data;
 
-            if (!approval) {
+            if (!approval || typeof approval !== 'object') {
                 lastError = 'No approval data in response';
                 await sleep(intervalMs);
                 continue;
             }
 
-            const status = approval.status?.String || approval.status;
+            // Bind polled decision strictly to the tracked approvalId when ID is returned.
+            const returnedId = extractPollString(approval.id);
+            if (returnedId && returnedId !== String(approvalId)) {
+                lastError = `Approval ID mismatch (expected ${approvalId}, got ${returnedId})`;
+                await sleep(intervalMs);
+                continue;
+            }
 
-            // If status is no longer pending, we have a decision
+            const rawStatus = extractPollString(approval.status);
+            const status = rawStatus ? rawStatus.toLowerCase() : '';
+
+            // If status is terminal (non-pending), return the server's authoritative decision.
             if (status && status !== 'pending') {
                 return {
                     status,
-                    notes: approval.response_notes?.String || approval.response_notes || '',
+                    notes: extractPollString(approval.response_notes) || '',
                     timedOut: false,
                 };
             }
 
-            // Still pending - wait and retry
+            // Still pending or incomplete - wait and retry
             await sleep(intervalMs);
         } catch (error: any) {
             lastError = error.message;
@@ -72,6 +81,25 @@ export async function pollForDecision(
         notes: `No decision received within ${timeoutSeconds}s. Last error: ${lastError}`,
         timedOut: true,
     };
+}
+
+function extractPollString(value: unknown): string | undefined {
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+    }
+    if (value && typeof value === 'object' && 'String' in value) {
+        const nullable = value as { String?: unknown; Valid?: unknown };
+        if (nullable.Valid === false) return undefined;
+        if (typeof nullable.String === 'string') {
+            const trimmed = nullable.String.trim();
+            return trimmed.length > 0 ? trimmed : undefined;
+        }
+    }
+    return undefined;
 }
 
 function sleep(ms: number): Promise<void> {

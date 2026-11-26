@@ -4,6 +4,7 @@ import { pollForDecision } from '../utils/poll.js';
 import { logger } from '../logging/logger.js';
 import { loadCredentials, type OrbiterCredentials } from '../auth/credentials.js';
 import { computeToolRisk } from '../policy/toolRisk.js';
+import { isTrustedOrbiterInternalTool } from '../policy/internalTools.js';
 import { meetsMinRisk, resolveMinRisk } from '../policy/ruleset.js';
 import { redactValue, redactString } from '../codex/redaction.js';
 
@@ -73,20 +74,12 @@ function emitDecisionAndExit(json: string, code: number): void {
 }
 
 // ─── Orbiter Self-Tool Passthrough ─────────────────────────────────
-// These are Orbiter's own MCP tools. The hook must NOT intercept them 
-// or it creates a phantom "Allow: mcp__orbiter__request_approval (Low)" 
-// approval before every real approval - a major UX pollution bug.
-const ORBITER_PASSTHROUGH_PREFIXES = [
-    'mcp__orbiter',
-    'orbiter__',
-    'mcp__orbiter-dev',
-];
-
+// These are Orbiter's own allowlisted internal MCP tools. The hook must NOT
+// intercept them or it creates a phantom approval card before every real one.
 const PRODUCTION_API_URL = 'https://api.orbiterdev.ai';
 
 function isOrbiterTool(toolName: string): boolean {
-    const lower = toolName.toLowerCase();
-    return ORBITER_PASSTHROUGH_PREFIXES.some(prefix => lower.startsWith(prefix));
+    return isTrustedOrbiterInternalTool(toolName);
 }
 
 // ─── Main Hook Handler ──────────────────────────────────────────────

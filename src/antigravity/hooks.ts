@@ -21,6 +21,7 @@ import {
   antigravityStopInputSchema,
 } from './types.js';
 import { antigravityRiskRequiresApproval, evaluateAntigravityRiskWithPolicy, isCriticalAntigravityRisk, recordFromArgs } from './risk.js';
+import { isTrustedOrbiterInternalTool } from '../policy/internalTools.js';
 import { createCodexApprovalAdapter } from '../codex/approvalAdapters.js';
 import { postCodexJson } from '../codex/approvalClient.js';
 import { isRecord, safeJson, sha256Hex, stableStringify, truncate } from '../codex/json.js';
@@ -163,7 +164,7 @@ export function normalizeAntigravityPreToolUse(raw: AntigravityPreToolUseInput, 
     metadata,
     approval,
     risk,
-    isOrbiterLoop: isOrbiterLoop(toolName, toolArgs),
+    isOrbiterLoop: isTrustedOrbiterInternalTool(toolName),
     requiresApproval: antigravityRiskRequiresApproval(toolName, risk, profile),
   };
 }
@@ -303,14 +304,6 @@ function antigravityWorkspaceName(workspacePaths: string[]): string {
   if (!workspacePaths.length) return 'Antigravity Project';
   const names = workspacePaths.map((workspace) => workspace.replace(/\\/g, '/').split('/').filter(Boolean).pop() || workspace);
   return names.length === 1 ? names[0] : `${names[0]} + ${names.length - 1} more`;
-}
-
-function isOrbiterLoop(toolName: string, args: Record<string, unknown>): boolean {
-  const text = `${toolName}\n${stableStringify(args)}`.toLowerCase();
-  return text.includes('orbiter-mcp') ||
-    text.includes('request_approval') ||
-    text.includes('antigravity-hook') ||
-    text.includes('orbiter approval');
 }
 
 function stringOr(value: unknown, fallback: string): string {

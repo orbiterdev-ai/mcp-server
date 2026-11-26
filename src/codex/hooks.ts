@@ -10,6 +10,7 @@ import type {
 import { isRecord, safeJson, sha256Hex, stableStringify, truncate } from './json.js';
 import { redactValue } from './redaction.js';
 import { evaluateHostToolRiskWithPolicy } from './risk.js';
+import { isTrustedOrbiterInternalTool } from '../policy/internalTools.js';
 import { meetsMinRisk, resolveMinRisk } from '../policy/ruleset.js';
 import { codexSourceRuntimeFromEnv, codexWorkspaceName } from './workspace.js';
 import { createCodexApprovalAdapter } from './approvalAdapters.js';
@@ -209,7 +210,7 @@ export function normalizeCodexHookEvent(raw: CodexHookEvent): NormalizedCodexEve
     metadata,
     approval,
     risk,
-    isOrbiterLoop: isOrbiterTool(toolName, toolInput),
+    isOrbiterLoop: isTrustedOrbiterInternalTool(toolName),
   };
 }
 
@@ -334,13 +335,6 @@ function estimateFileCount(input: unknown): number {
   const text = stableStringify(input);
   const matches = text.match(/(?:[A-Za-z]:\\|\.{0,2}\/)[^"'\s]+/g);
   return matches ? Math.min(matches.length, 999) : 0;
-}
-
-function isOrbiterTool(toolName: string, input: unknown): boolean {
-  const lowerTool = toolName.toLowerCase();
-  if (lowerTool.includes('orbiter') || lowerTool.includes('request_approval')) return true;
-  const inputText = stableStringify(input).toLowerCase();
-  return inputText.includes('orbiter-mcp') || inputText.includes('codex-orbiter');
 }
 
 function isCodexInternalPlanApproval(normalized: NormalizedCodexEvent): boolean {
