@@ -3,9 +3,9 @@
 All notable changes to the npm package. Dates are release-prep dates; actual
 publish to npm is a separate, gated step.
 
-## 0.1.14 - 2026-07-02 (B-118 added 2026-07-22, still unpublished at time of writing)
+## 0.1.14 - 2026-07-22
 
-### Added - `ORBITER_MIN_RISK`: one approval threshold across every IDE (B-118)
+### Added - `ORBITER_MIN_RISK`: one approval threshold across every supported host
 - **Problem.** Each surface implemented its own gate, so the same risk level meant
   different things: Codex/Gemini hardcoded `high`+`critical` only; Antigravity gated on
   *tool identity* (a low-risk `run_command` still routed); and **Claude Code had no risk
@@ -22,9 +22,9 @@ publish to npm is a separate, gated step.
 - **Fail-safe.** `critical` always escalates regardless of threshold, and an unparseable
   value falls back to the surface default rather than silently loosening the gate.
 - Usage: set `ORBITER_MIN_RISK=high` to make Claude Code as quiet as Codex.
-  See `docs/guides/APPROVAL_RISK_ROUTING_AND_TOGGLES.md`.
+  See [https://orbiterdev.ai/docs](https://orbiterdev.ai/docs).
 
-### Changed - hook determinism pass (see `docs/reports/HOOKS_DETERMINISM_REVIEW_2026-07-01.md`)
+### Changed - hook determinism pass
 - **Claude Code surfaces now use the shared policy ruleset.** The `permission-check` hook
   and the MCP permission relay previously carried two separate ad-hoc keyword classifiers,
   so the same command could get a different risk label on Claude than on Codex/Gemini
@@ -52,7 +52,7 @@ publish to npm is a separate, gated step.
   the Claude, Codex, and Gemini surfaces; that classification is input-size independent;
   and that the legacy escape hatch still works.
 
-### Changed - decision-semantics unification (2026-07-01 second pass; see `docs/reports/HOOKS_PROVIDER_CONTRACT_AUDIT_2026-07-01.md`)
+### Changed - decision-semantics unification
 - **Critical risk now routes to the phone by default** on Codex PreToolUse, Gemini
   BeforeTool, and Antigravity PreToolUse (previously: silent local auto-deny the phone
   never saw). `--critical deny` (hook and setup flag) restores the old local hard-deny.

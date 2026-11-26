@@ -27,7 +27,7 @@ const commonInputSchema = z.object({
 
 export const antigravityToolCallSchema = z.object({
   name: z.string().min(1),
-  args: z.record(z.unknown()).default({}),
+  args: z.record(z.string(), z.unknown()).default({}),
 }).passthrough();
 
 export const antigravityPreToolUseInputSchema = commonInputSchema.extend({

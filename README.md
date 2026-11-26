@@ -194,6 +194,6 @@ npx -y @orbiterdev/mcp-server@0.1.14 gemini setup --offline-capture --capture-di
 
 ---
 
-[Website](https://orbiterdev.ai) · [Documentation](https://orbiterdev.ai/docs) · [Setup](https://orbiterdev.ai/setup) · [Privacy](https://orbiterdev.ai/legal/privacy) · [Terms](https://orbiterdev.ai/legal/terms) · [Support](mailto:info@orbiterdev.ai)
+[Website](https://orbiterdev.ai) · [Documentation](https://orbiterdev.ai/docs) · [Setup](https://orbiterdev.ai/setup) · [Privacy](https://orbiterdev.ai/legal/privacy) · [Terms](https://orbiterdev.ai/legal/terms) · [Support](mailto:support@orbiterdev.ai)
 
 Copyright (c) 2026 Orbiter Dev. MIT License.

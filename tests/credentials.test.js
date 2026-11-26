@@ -128,10 +128,10 @@ test('permission-check resolves backend URL without defaulting to localhost', as
     'https://api.orbiterdev.ai',
   );
 
-  runtimeEnv.ORBITER_SERVER_URL = 'https://staging-api.orbiterdev.ai';
+  runtimeEnv.ORBITER_SERVER_URL = 'https://staging-api.example.invalid';
   assert.equal(
     resolvePermissionCheckServerUrl(sampleCredentials()),
-    'https://staging-api.orbiterdev.ai',
+    'https://staging-api.example.invalid',
   );
 });
 
