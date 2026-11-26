@@ -38,6 +38,16 @@ export const SESSION_ID = randomUUID();
 const SERVER_NAME = 'orbiter-dev-mcp';
 const SERVER_VERSION = MCP_PACKAGE_VERSION;
 
+export const SERVER_INSTRUCTIONS = [
+    'Orbiter Dev provides one-tap mobile human sign-off (iOS and Android, with Face ID and Android biometrics) for AI agents.',
+    '',
+    'Tool selection rules:',
+    '- Use `request_approval` before any high-risk, external, or irreversible action (production deploys, deletions, permission changes, outbound sends). It blocks fail-closed until the server confirms a terminal mobile decision; never treat pending, timeout, error, rejected, or expired outcomes as approved.',
+    '- Use `notify_user` only for one-way fire-and-forget informational alerts (progress updates, completions, errors). It never blocks for confirmation and never substitutes for `request_approval`.',
+    '- Use `kill_agent` only when an active agent session UUID must be terminated immediately.',
+    '- When credentials are missing or expired, run `orbiter_auth` with a mobile pairing code (Settings -> Pair IDE) and then call `orbiter_auth_verify` once with the returned `device_code` to pair the workspace.',
+].join('\n');
+
 export const CORE_TOOLS = [
     requestApprovalTool,
     authTool,
@@ -163,6 +173,7 @@ async function main(): Promise<void> {
             capabilities: {
                 tools: {},
             },
+            instructions: SERVER_INSTRUCTIONS,
         }
     );
 

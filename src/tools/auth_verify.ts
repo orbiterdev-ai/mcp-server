@@ -3,14 +3,14 @@ import { saveCredentials, OrbiterCredentials } from '../auth/credentials.js';
 
 export const authVerifyTool = {
     name: "orbiter_auth_verify",
-    description: `Check if the user has completed pairing on their Orbiter Dev mobile app (iOS and Android). Call this after orbiter_auth has returned a pairing code and the user confirms they have entered it.
+    description: `Poll for mobile confirmation of a pairing code claimed via \`orbiter_auth\` and persist local API credentials once approved on the Orbiter Dev mobile app (iOS and Android).
 
-Input: the device_code string that orbiter_auth returned.
+State mutation (\`readOnlyHint: false\`): When the backend returns an authorized pairing, this tool writes the issued API key, user ID, pairing timestamp, and backend URL locally to \`~/.orbiter/credentials\` (or the override path in \`ORBITER_CREDENTIAL_PATH\` / \`ORBITER_CREDENTIAL_PROFILE\`) with restrictive 0600 file permissions.
 
-Behavior:
-- Polls the backend for up to 60 seconds to check if the user entered the code.
-- Returns "paired" on success, "pending" if still waiting, or an error if expired/denied.
-- If "pending", ask the user if they've entered the code yet, then call this tool again.`,
+Polling & return payload: Polls every 5 seconds for up to 60 seconds per call (pairing codes remain valid for 5 minutes total) and returns JSON with \`success\` (boolean), \`status\` (\`"paired"\`, \`"pending"\`, \`"expired"\`, or \`"denied"\`), \`message\`, and optional \`credentials_saved\` / \`error\` / \`recovery\` fields:
+- \`"paired"\`: Confirmation succeeded and local credentials are persisted (or already saved on re-poll); all other Orbiter tools are now authenticated.
+- \`"pending"\`: Confirmation not yet tapped within the 60s poll window; ask the user to tap "Allow" in the Orbiter Dev app and call \`orbiter_auth_verify\` again with the same \`device_code\`.
+- \`"expired"\` or \`"denied"\`: Pairing cannot complete with this \`device_code\`. Recovery: ask the user for a new pairing code from Settings -> Pair IDE and re-run \`orbiter_auth\` to start a fresh pairing flow.`,
     annotations: {
         title: "Verify Mobile Pairing",
         readOnlyHint: false,
@@ -23,24 +23,40 @@ Behavior:
         properties: {
             device_code: {
                 type: "string",
-                description: "The device_code returned by orbiter_auth"
+                format: "uuid",
+                minLength: 1,
+                description: "The device_code UUID returned by orbiter_auth after claiming the user's mobile pairing code (required)."
             }
         },
         required: ["device_code"]
     }
 };
 
-export async function handleAuthVerify(args: unknown): Promise<{ content: Array<{ type: string; text: string }> }> {
+export interface AuthVerifyOptions {
+    backendUrl?: string;
+    maxWaitMs?: number;
+    intervalMs?: number;
+}
+
+export async function handleAuthVerify(
+    args: unknown,
+    options: AuthVerifyOptions = {}
+): Promise<{ content: Array<{ type: string; text: string }> }> {
     const inputSchema = z.object({
-        device_code: z.string()
+        device_code: z.string().min(1)
     });
     const input = inputSchema.parse(args);
 
-    const backendUrl = process.env.ORBITER_SERVER_URL || 'https://api.orbiterdev.ai';
-    const deviceCode = input.device_code;
+    const backendUrl = (
+        options.backendUrl ||
+        process.env.ORBITER_API_URL ||
+        process.env.ORBITER_SERVER_URL ||
+        'https://api.orbiterdev.ai'
+    ).replace(/\/+$/, '');
+    const deviceCode = input.device_code.trim();
 
-    const maxWaitMs = 60_000; // 60 seconds max per call
-    const intervalMs = 5_000; // 5 second intervals
+    const maxWaitMs = options.maxWaitMs ?? 60_000; // 60 seconds max per call
+    const intervalMs = options.intervalMs ?? 5_000; // 5 second intervals
     const start = Date.now();
 
     while (Date.now() - start < maxWaitMs) {
@@ -56,7 +72,13 @@ export async function handleAuthVerify(args: unknown): Promise<{ content: Array<
                     return {
                         content: [{
                             type: 'text',
-                            text: 'The pairing code has expired. Please call orbiter_auth again to get a new code.'
+                            text: JSON.stringify({
+                                success: false,
+                                status: 'expired',
+                                error: 'expired_token',
+                                message: 'The pairing code has expired.',
+                                recovery: 'Ask the user for a fresh pairing code from Settings -> Pair IDE in the Orbiter Dev mobile app and re-run orbiter_auth.',
+                            }, null, 2)
                         }]
                     };
                 }
@@ -64,7 +86,13 @@ export async function handleAuthVerify(args: unknown): Promise<{ content: Array<
                     return {
                         content: [{
                             type: 'text',
-                            text: 'The pairing request was denied by the user.'
+                            text: JSON.stringify({
+                                success: false,
+                                status: 'denied',
+                                error: 'access_denied',
+                                message: 'The pairing request was denied by the user on mobile.',
+                                recovery: 'Confirm the user wants to connect this workspace, then generate a new pairing code in Settings -> Pair IDE and re-run orbiter_auth.',
+                            }, null, 2)
                         }]
                     };
                 }
@@ -73,16 +101,22 @@ export async function handleAuthVerify(args: unknown): Promise<{ content: Array<
                 continue;
             }
 
-            const jsonResponse: any = await response.json();
-            const data = jsonResponse.data || jsonResponse;
-            const status = data?.status || (data?.api_key ? 'authorized' : 'authorization_pending');
+            const jsonResponse = await response.json() as Record<string, unknown>;
+            const data = (jsonResponse.data && typeof jsonResponse.data === 'object'
+                ? jsonResponse.data
+                : jsonResponse) as Record<string, unknown>;
+            const apiKey = typeof data.api_key === 'string' ? data.api_key : undefined;
+            const userId = typeof data.user_id === 'string' ? data.user_id : undefined;
+            const status = typeof data.status === 'string'
+                ? data.status
+                : (apiKey ? 'authorized' : 'authorization_pending');
 
             if (status === 'authorized') {
-                if (data.api_key && data.user_id) {
-                    // First-time authorization - save credentials
+                if (apiKey && userId) {
+                    // First-time authorization - persist credentials locally (0600)
                     const newCreds: OrbiterCredentials = {
-                        api_key: data.api_key,
-                        user_id: data.user_id,
+                        api_key: apiKey,
+                        user_id: userId,
                         paired_at: new Date().toISOString(),
                         backend_url: backendUrl
                     };
@@ -91,7 +125,12 @@ export async function handleAuthVerify(args: unknown): Promise<{ content: Array<
                     return {
                         content: [{
                             type: 'text',
-                            text: 'Paired successfully! ✅ Your IDE is now connected to Orbiter Dev.'
+                            text: JSON.stringify({
+                                success: true,
+                                status: 'paired',
+                                credentials_saved: true,
+                                message: 'Paired successfully. Local API credentials saved to ~/.orbiter/credentials and workspace is now connected to Orbiter Dev.',
+                            }, null, 2)
                         }]
                     };
                 } else {
@@ -99,7 +138,12 @@ export async function handleAuthVerify(args: unknown): Promise<{ content: Array<
                     return {
                         content: [{
                             type: 'text',
-                            text: 'Paired successfully! ✅ (Credentials were already saved from a previous pairing.)'
+                            text: JSON.stringify({
+                                success: true,
+                                status: 'paired',
+                                credentials_saved: false,
+                                message: 'Paired successfully. Credentials were already saved from a previous verification.',
+                            }, null, 2)
                         }]
                     };
                 }
@@ -109,12 +153,19 @@ export async function handleAuthVerify(args: unknown): Promise<{ content: Array<
                 // Code was claimed, waiting for mobile user to tap "Allow"
                 // Keep polling within this 60s window
             }
-        } catch (err: any) {
-            if (err.message && (err.message.includes('expired') || err.message.includes('denied'))) {
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            if (errorMessage.includes('expired') || errorMessage.includes('denied')) {
                 return {
                     content: [{
                         type: 'text',
-                        text: `Pairing failed: ${err.message}. Please call orbiter_auth to get a new code.`
+                        text: JSON.stringify({
+                            success: false,
+                            status: errorMessage.includes('expired') ? 'expired' : 'denied',
+                            error: errorMessage,
+                            message: `Pairing failed: ${errorMessage}.`,
+                            recovery: 'Generate a fresh pairing code in Settings -> Pair IDE and re-run orbiter_auth.',
+                        }, null, 2)
                     }]
                 };
             }
@@ -128,7 +179,11 @@ export async function handleAuthVerify(args: unknown): Promise<{ content: Array<
     return {
         content: [{
             type: 'text',
-            text: 'Still waiting for the pairing code to be entered on the phone. The code is still valid. Ask the user if they have entered the code in the Orbiter Dev app, then call orbiter_auth_verify again with the same device_code.'
+            text: JSON.stringify({
+                success: false,
+                status: 'pending',
+                message: 'Still waiting for confirmation on the phone. Ask the user to tap "Allow" in the Orbiter Dev app, then call orbiter_auth_verify again with the same device_code.',
+            }, null, 2)
         }]
     };
 }

@@ -9,25 +9,32 @@ import { getAuthHeaders } from '../utils/auth.js';
  */
 
 const NotifyInputSchema = z.object({
-    title: z.string().describe('Notification title'),
-    message: z.string().describe('Notification body text'),
+    title: z.string().min(1).describe('Short heading displayed on the mobile push notification banner (non-empty string, recommended under 80 characters)'),
+    message: z.string().min(1).describe('Plain-text notification body describing the status update, completion summary, or alert (non-empty string, recommended under 500 characters)'),
     priority: z.enum(['low', 'default', 'high', 'urgent']).optional().default('default')
-        .describe('Notification priority level'),
+        .describe('Urgency tier controlling mobile delivery prominence: low (silent), default (standard), high (elevated), or urgent (critical). Defaults to "default".'),
 });
 
 type NotifyInput = z.infer<typeof NotifyInputSchema>;
 
 export const notifyUserTool = {
     name: 'notify_user',
-    description: `Send a push notification to the user's phone via Orbiter Dev or ntfy.sh.
+    description: `Send a one-way, fire-and-forget informational push alert to the user's phone (iOS and Android) via the Orbiter Dev backend or a direct ntfy.sh topic.
 
-Use this tool to alert the user about important events:
-- Task completed successfully
-- Error that needs attention
-- Question that requires human input
-- Deployment or build status updates
+Important routing rule: This tool does not wait for a human response, does not block execution, and never substitutes for \`request_approval\`. Always use \`request_approval\` whenever human sign-off or biometric confirmation is required before proceeding.
 
-Configure a direct ntfy topic via ORBITER_NTFY_TOPIC, or leave unset to route via your configured ORBITER_API_URL.`,
+Use this tool only for non-blocking updates:
+- Task, build, or deployment completion notices
+- Non-blocking errors or status milestones
+- Letting the user know an artifact or question is ready for review
+
+Delivery routing:
+- If \`ORBITER_NTFY_TOPIC\` is set, sends directly to \`https://ntfy.sh/<topic>\`.
+- Otherwise routes through \`ORBITER_API_URL\` (or legacy \`ORBITER_SERVER_URL\`, default \`https://api.orbiterdev.ai\`) using saved credentials or \`ORBITER_TOKEN\`.
+
+Returns JSON with \`success\` (boolean delivery status), \`channel\` (\`"ntfy"\` or \`"orbiter_push"\`), \`provider\` (\`"ntfy.sh"\` or \`"backend"\`), \`timestamp\` (ISO-8601 UTC string), and \`message\`.
+
+Failure behavior: Delivery errors do not throw exceptions; instead returns structured JSON with \`success: false\`, \`channel\`, \`provider\`, \`timestamp\`, \`error\`, and \`hint\` so the caller can surface a warning without crashing.`,
     annotations: {
         title: 'Notify User on Mobile',
         readOnlyHint: false,
@@ -40,16 +47,18 @@ Configure a direct ntfy topic via ORBITER_NTFY_TOPIC, or leave unset to route vi
         properties: {
             title: {
                 type: 'string',
-                description: 'Notification title',
+                minLength: 1,
+                description: 'Short heading displayed on the mobile push notification banner (required, non-empty string; recommended under 80 characters for lock-screen readability).',
             },
             message: {
                 type: 'string',
-                description: 'Notification body text',
+                minLength: 1,
+                description: 'Plain-text notification body describing the status update, completion summary, or alert (required, non-empty string; recommended under 500 characters).',
             },
             priority: {
                 type: 'string',
                 enum: ['low', 'default', 'high', 'urgent'],
-                description: 'Notification priority',
+                description: 'Urgency tier controlling mobile delivery prominence: "low" (silent/passive), "default" (standard alert), "high" (elevated alert), or "urgent" (critical alert). Optional; defaults to "default".',
                 default: 'default',
             },
         },
@@ -62,14 +71,14 @@ export async function handleNotifyUser(
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
     const input = NotifyInputSchema.parse(args);
 
-    // Check for direct ntfy topic (preferred)
-    const ntfyTopic = process.env.ORBITER_NTFY_TOPIC;
+    // Check for direct ntfy topic (preferred when explicitly configured)
+    const ntfyTopic = process.env.ORBITER_NTFY_TOPIC?.trim();
 
     if (ntfyTopic) {
         return sendViaNtfy(ntfyTopic, input);
     }
 
-    // Fallback: send via backend
+    // Fallback: send via Orbiter backend
     return sendViaBackend(input);
 }
 
@@ -77,8 +86,9 @@ async function sendViaNtfy(
     topic: string,
     input: NotifyInput
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+    const timestamp = new Date().toISOString();
     try {
-        const response = await fetch(`https://ntfy.sh/${topic}`, {
+        const response = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, {
             method: 'POST',
             headers: {
                 'Title': input.title,
@@ -96,19 +106,25 @@ async function sendViaNtfy(
                 type: 'text',
                 text: JSON.stringify({
                     success: true,
-                    message: `Notification sent via ntfy.sh topic "${topic}"`,
+                    channel: 'ntfy',
                     provider: 'ntfy.sh',
+                    timestamp,
+                    message: `Notification sent via ntfy.sh topic "${topic}"`,
                 }, null, 2),
             }],
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
             content: [{
                 type: 'text',
                 text: JSON.stringify({
                     success: false,
-                    error: error.message,
-                    hint: `Check ntfy.sh topic "${topic}" is valid`,
+                    channel: 'ntfy',
+                    provider: 'ntfy.sh',
+                    timestamp,
+                    error: errorMessage,
+                    hint: `Check that ORBITER_NTFY_TOPIC ("${topic}") is valid and reachable`,
                 }, null, 2),
             }],
         };
@@ -118,7 +134,12 @@ async function sendViaNtfy(
 async function sendViaBackend(
     input: NotifyInput
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
-    const serverUrl = process.env.ORBITER_SERVER_URL || 'https://api.orbiterdev.ai';
+    const serverUrl = (
+        process.env.ORBITER_API_URL ||
+        process.env.ORBITER_SERVER_URL ||
+        'https://api.orbiterdev.ai'
+    ).replace(/\/+$/, '');
+    const timestamp = new Date().toISOString();
 
     try {
         const response = await fetch(`${serverUrl}/api/v1/notify`, {
@@ -141,19 +162,25 @@ async function sendViaBackend(
                 type: 'text',
                 text: JSON.stringify({
                     success: true,
-                    message: 'Notification sent via backend',
+                    channel: 'orbiter_push',
                     provider: 'backend',
+                    timestamp,
+                    message: 'Notification sent via Orbiter Dev mobile push backend',
                 }, null, 2),
             }],
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
             content: [{
                 type: 'text',
                 text: JSON.stringify({
                     success: false,
-                    error: error.message,
-                    hint: 'Set ORBITER_NTFY_TOPIC env var for direct ntfy.sh delivery',
+                    channel: 'orbiter_push',
+                    provider: 'backend',
+                    timestamp,
+                    error: errorMessage,
+                    hint: 'Verify ORBITER_API_URL and pairing credentials (run orbiter_auth), or set ORBITER_NTFY_TOPIC for direct ntfy.sh delivery',
                 }, null, 2),
             }],
         };

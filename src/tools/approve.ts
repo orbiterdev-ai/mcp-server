@@ -28,14 +28,14 @@ import { MCP_PACKAGE_VERSION } from '../version.js';
 
 // Input schema for the tool
 const RequestApprovalInputSchema = z.object({
-    action: z.string().describe('The action requiring approval (e.g., "deploy", "delete", "modify")'),
-    description: z.string().describe('Human-readable description of what will happen'),
-    risk_analysis: z.string().describe('Step-by-step reasoning explaining why this action is safe and necessary before execution.'),
-    files: z.array(z.string()).optional().describe('List of files that will be affected'),
-    diffSummary: z.string().optional().describe('Summary of code changes'),
+    action: z.string().min(1).describe('Short verb or category naming the operation requiring sign-off (e.g., "deploy", "delete", "db_migrate", "send_email").'),
+    description: z.string().min(1).describe('Clear human-readable summary of what will happen, including target resources, scope, and impact, displayed on the mobile approval card.'),
+    risk_analysis: z.string().min(1).describe('Concise reasoning explaining why this action is necessary, potential blast radius, and safeguards or rollback steps.'),
+    files: z.array(z.string()).optional().describe('Optional list of repository or filesystem paths affected by this action.'),
+    diffSummary: z.string().optional().describe('Optional concise summary or snippet of code changes or command arguments for review.'),
     riskLevel: z.enum(['low', 'medium', 'high', 'critical']).optional().default('low')
-        .describe('Risk level of the operation'),
-    workspaceName: z.string().optional().describe('Name of the current workspace'),
+        .describe('Risk severity tier shown on the mobile card: low, medium, high (biometric confirmation), or critical (irreversible/production impact). Defaults to "low".'),
+    workspaceName: z.string().optional().describe('Optional display name for the current project or workspace shown on the mobile card. Defaults to the current working directory name.'),
 });
 
 type RequestApprovalInput = z.infer<typeof RequestApprovalInputSchema>;
@@ -84,15 +84,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // Tool definition for MCP
 export const requestApprovalTool = {
     name: 'request_approval',
-    description: `Request explicit human sign-off via the Orbiter Dev mobile app (iOS and Android) before running irreversible, external, or high-impact actions.
+    description: `Request explicit human sign-off on the Orbiter Dev mobile app (iOS and Android, with Face ID and Android biometrics for high-risk actions) before running irreversible, external, or high-impact actions.
 
-Use this tool when:
-- Deploying to production
+When to use:
+- Deploying to production or modifying infrastructure
 - Deleting files, databases, or cloud resources
-- Modifying sensitive configuration or security policies
-- Taking external actions that require explicit confirmation
+- Changing security policies, permissions, or sensitive configuration
+- Sending external communications or executing financial/operational side effects
 
-Pass the action name, summary, risk analysis, and risk level. The user receives a push notification on their phone (with Face ID or Android biometrics for high-risk actions) and execution pauses until a decision is returned.`,
+Routing rule: Use \`request_approval\` whenever execution must block for human sign-off. For one-way informational alerts that do not require permission, use \`notify_user\` instead.
+
+Blocking & return payload: Pauses via SSE (with polling fallback, default timeout 300s via \`ORBITER_APPROVAL_TIMEOUT_SECONDS\`) and returns JSON with \`success\` (boolean), \`approved\` (boolean), \`status\` (\`"approved"\`, \`"rejected"\`, \`"denied"\`, \`"cancelled"\`, \`"expired"\`, \`"timeout"\`, or \`"incomplete"\`), \`message\`, \`approval_id\`, and optional \`response_notes\`.
+
+Fail-closed outcomes:
+- \`approved\`: \`{ success: true, approved: true, status: "approved", approval_id, response_notes }\` - safe to proceed.
+- \`rejected\` / \`denied\` / \`cancelled\`: \`{ success: true, approved: false, status: "rejected"|"denied"|"cancelled", approval_id, response_notes }\` - halt and do not execute.
+- \`expired\` / \`timeout\` / \`incomplete\` / error: \`approved: false\` (with \`error\` and \`hint\` on transport failures, or authentication instructions on HTTP 401 prompting \`orbiter_auth\`). Never treat pending, timeout, expired, incomplete, or error responses as approved.`,
     annotations: {
         title: 'Request Mobile Approval',
         readOnlyHint: false,
@@ -105,34 +112,37 @@ Pass the action name, summary, risk analysis, and risk level. The user receives 
         properties: {
             action: {
                 type: 'string',
-                description: 'The action requiring approval',
+                minLength: 1,
+                description: 'Short verb or category naming the operation requiring sign-off (required, non-empty string; e.g., "deploy", "delete", "db_migrate", "send_email").',
             },
             description: {
                 type: 'string',
-                description: 'Human-readable description of what will happen',
+                minLength: 1,
+                description: 'Clear human-readable summary of what will happen, including target resources, scope, and impact, displayed on the mobile approval card (required, non-empty string).',
             },
             risk_analysis: {
                 type: 'string',
-                description: 'Step-by-step reasoning explaining why this action is safe and necessary before execution.',
+                minLength: 1,
+                description: 'Concise reasoning explaining why this action is necessary, its blast radius, and what safeguards or rollback steps exist (required, non-empty string).',
             },
             files: {
                 type: 'array',
                 items: { type: 'string' },
-                description: 'List of files that will be affected',
+                description: 'Optional list of repository or filesystem paths affected by this action, shown to the mobile reviewer.',
             },
             diffSummary: {
                 type: 'string',
-                description: 'Summary of code changes',
+                description: 'Optional concise summary or snippet of code changes or exact command arguments for the reviewer to inspect.',
             },
             riskLevel: {
                 type: 'string',
                 enum: ['low', 'medium', 'high', 'critical'],
-                description: 'Risk level of the operation',
+                description: 'Risk severity tier shown on the mobile card: "low" (routine reversible action), "medium" (moderate impact), "high" (elevated risk with biometric confirmation), or "critical" (irreversible or production-impacting action). Optional; defaults to "low".',
                 default: 'low',
             },
             workspaceName: {
                 type: 'string',
-                description: 'Name of the current workspace',
+                description: 'Optional display name for the current project or workspace shown on the mobile card. Defaults to the current working directory name.',
             },
         },
         required: ['action', 'description', 'risk_analysis'],
@@ -367,7 +377,8 @@ export async function handleRequestApproval(
             }],
         };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
             content: [
                 {
@@ -375,7 +386,7 @@ export async function handleRequestApproval(
                     text: JSON.stringify({
                         success: false,
                         approved: false,
-                        error: error.message,
+                        error: errorMessage,
                         hint: 'Verify connectivity to your configured ORBITER_API_URL (default https://api.orbiterdev.ai).',
                     }, null, 2),
                 },

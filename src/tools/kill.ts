@@ -11,24 +11,30 @@ import { getAuthHeaders } from '../utils/auth.js';
 
 const KillAgentInputSchema = z.object({
     session_id: z.string().uuid()
-        .describe('The session UUID of the agent to kill. Get this from list_connected_agents.'),
+        .describe('UUID v4 identifier of the target active agent session to terminate (from the Orbiter Dev mobile app, dashboard, or session startup logs).'),
     reason: z.string().optional()
-        .describe('Optional reason for killing the agent'),
+        .describe('Optional human-readable explanation recorded in the audit log for why the session was terminated. Defaults to "Kill switch activated via MCP".'),
 });
 
 type KillAgentInput = z.infer<typeof KillAgentInputSchema>;
 
 export const killAgentTool = {
     name: 'kill_agent',
-    description: `Terminate an active AI agent session immediately.
+    description: `Terminate an active AI agent session immediately by setting its state to "killed" in the Orbiter Dev backend and broadcasting a stop signal to connected clients.
 
-Use this tool when:
-- An agent is stuck in a loop and not responding
-- You need to stop an agent from executing a dangerous operation
-- The user explicitly requests agent termination
+Use this tool only when:
+- An agent is stuck in a loop or unresponsive
+- You must halt a runaway agent before further side effects occur
+- The user explicitly requests session termination
 - A dead-man switch has triggered (no heartbeat in 60s)
 
-This sets the session state to "killed" in the Orbiter backend and broadcasts a stop signal to connected clients. Use with caution: in-progress work may be lost.`,
+Routing rule: Destructive control action (in-progress work in that session may be lost). Do not use \`kill_agent\` to pause for confirmation before an action (use \`request_approval\`) or to send an informational alert (use \`notify_user\`).
+
+Returns JSON with \`success: true\`, \`session_id\`, \`status: "killed"\`, \`message\`, and \`data\` (backend response containing \`session_id\`, \`status\`, \`reason\`, and \`killed_at\` timestamp).
+
+Idempotency & error behavior:
+- Calling \`kill_agent\` on an already-terminated session owned by the same user is idempotent and returns \`success: true\` with \`status: "killed"\`.
+- If \`session_id\` is unknown (HTTP 404), belongs to another account (HTTP 403), authentication is missing/expired (HTTP 401), or the backend is unreachable, returns structured non-throwing JSON with \`success: false\`, \`session_id\`, \`error\`, and \`hint\`. Malformed non-UUID \`session_id\` values fail input validation before any network call.`,
     annotations: {
         title: 'Terminate Agent Session',
         readOnlyHint: false,
@@ -41,11 +47,12 @@ This sets the session state to "killed" in the Orbiter backend and broadcasts a 
         properties: {
             session_id: {
                 type: 'string',
-                description: 'The session UUID of the agent to kill',
+                format: 'uuid',
+                description: 'UUID v4 identifier of the target agent session to terminate (required; obtain from the Orbiter Dev mobile app, dashboard, or session startup logs).',
             },
             reason: {
                 type: 'string',
-                description: 'Optional reason for killing the agent',
+                description: 'Optional human-readable explanation recorded in the audit log and kill broadcast. Defaults to "Kill switch activated via MCP".',
             },
         },
         required: ['session_id'],
@@ -55,11 +62,15 @@ This sets the session state to "killed" in the Orbiter backend and broadcasts a 
 export async function handleKillAgent(
     args: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
-    const input = KillAgentInputSchema.parse(args);
-    const serverUrl = process.env.ORBITER_SERVER_URL || 'https://api.orbiterdev.ai';
+    const input: KillAgentInput = KillAgentInputSchema.parse(args);
+    const serverUrl = (
+        process.env.ORBITER_API_URL ||
+        process.env.ORBITER_SERVER_URL ||
+        'https://api.orbiterdev.ai'
+    ).replace(/\/+$/, '');
 
     try {
-        const response = await fetch(`${serverUrl}/api/v1/sessions/${input.session_id}/kill`, {
+        const response = await fetch(`${serverUrl}/api/v1/sessions/${encodeURIComponent(input.session_id)}/kill`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({
@@ -79,6 +90,8 @@ export async function handleKillAgent(
                 type: 'text',
                 text: JSON.stringify({
                     success: true,
+                    session_id: input.session_id,
+                    status: 'killed',
                     message: `Agent session ${input.session_id} has been terminated`,
                     data,
                 }, null, 2),
@@ -91,8 +104,9 @@ export async function handleKillAgent(
                 type: 'text',
                 text: JSON.stringify({
                     success: false,
+                    session_id: input.session_id,
                     error: errorMessage,
-                    hint: 'Ensure the session ID is valid and the Orbiter backend is running',
+                    hint: 'Verify the session UUID exists, belongs to your paired account, and ORBITER_API_URL is reachable',
                 }, null, 2),
             }],
         };
